@@ -7,7 +7,7 @@ var _      = require('underscore')
 var util   = require('util')
 
 
-var testopts = {test:{silent:true}}
+var testopts = {log:'silent'}
 
 
 var seneca = require('..')
@@ -73,16 +73,6 @@ describe('seneca.util', function() {
     fin()
   })
 
-
-
-  it('seneca.util.deepextend.cycle', function(fin) {
-    var a = {x:1}
-    a.a = a
-    var c = si.util.deepextend( {}, a )
-
-    assert.equal( "{ x: 1, a: { x: 1, a: { x: 1, a: [Circular] } } }", util.inspect(c) )
-    fin()
-  })
 
 
   it('seneca.util.argprops',function(){

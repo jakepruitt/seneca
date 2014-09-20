@@ -42,8 +42,13 @@ var testopts = {log:'silent'}
 describe('seneca', function(){
 
   it('version', function(){
+    var start = Date.now()
     var si = seneca(testopts)
     assert.equal(si.version,VERSION)
+    var end = Date.now()
+
+    // ensure startup time does not degenerate
+    assert.ok( end-start < 333 )
   })
 
 
@@ -127,9 +132,7 @@ describe('seneca', function(){
 
 
   it('failgen.meta.happy', function() {
-    var si = seneca({
-      test:{silent:true}
-    })
+    var si = seneca(testopts)
     
     // nothing
     var err = si.fail()
@@ -226,7 +229,7 @@ describe('seneca', function(){
 
     function next_b() {
       errhandler = function(err){
-        assert.equal('task-execute',arguments[8])
+        assert.equal('action-execute',arguments[10])
         cblog += 'B'
       }
       si.act({role:'error-test',how:'fail'},function(err){
@@ -239,7 +242,7 @@ describe('seneca', function(){
 
     function next_c() {
       errhandler = function(err){
-        assert.equal('task-execute',arguments[8])
+        assert.equal('action-execute',arguments[10])
         cblog += 'C'
       }
       si.act({role:'error-test',how:'errobj'},function(err){
@@ -252,7 +255,7 @@ describe('seneca', function(){
 
     function next_d() {
       errhandler = function(err){
-        assert.equal('a string error',arguments[8])
+        assert.equal('a string error',arguments[10])
         cblog += 'D'
       }
       si.act({role:'error-test',how:'str'},function(err){
@@ -265,7 +268,7 @@ describe('seneca', function(){
 
     function next_e() {
       errhandler = function(err){
-        assert.equal('unknown',arguments[8])
+        assert.equal('unknown',arguments[10])
         cblog += 'E'
       }
       si.act({role:'error-test',how:'obj'},function(err){
@@ -278,11 +281,11 @@ describe('seneca', function(){
 
     function next_f() {
       errhandler = function(err){
-        assert.equal('task-error',arguments[8])
+        assert.equal('action-error',arguments[10])
         cblog += 'F'
       }
       si.act({role:'error-test',how:'cb-err'},function(err){
-        assert.equal('task-error',err.code)
+        assert.equal('action-error',err.code)
         cblog += 'f'
         next_g()
       })
@@ -291,11 +294,11 @@ describe('seneca', function(){
 
     function next_g() {
       errhandler = function(err){
-        assert.equal('task-error',arguments[8])
+        assert.equal('action-error',arguments[10])
         cblog += 'G'
       }
       si.act({role:'error-test',how:'cb-fail'},function(err){
-        assert.equal('task-error',err.code)
+        assert.equal('action-error',err.code)
         assert.equal('cb-fail',err.seneca.code)
         cblog += 'g'
         next_h()
@@ -305,7 +308,7 @@ describe('seneca', function(){
 
     function next_h() {
       errhandler = function(err){
-        assert.equal('unknown',arguments[8])
+        assert.equal('unknown',arguments[10])
         cblog += 'H'
       }
       si.act({role:'error-test',how:'cb-obj'},function(err){
@@ -319,14 +322,14 @@ describe('seneca', function(){
     function next_i() {
       var count = 0
       errhandler = function(err){
-        0===count && assert.equal('task-error',arguments[8]);
+        0===count && assert.equal('action-error',arguments[10]);
         1===count && assert.equal('callback',arguments[6]);
         count++
         cblog += 'I'
         if( 1 < count ) return finish();
       }
       si.act({role:'error-test',how:'cb-cb-err'},function(err){
-        assert.equal('task-error',err.code)
+        assert.equal('action-error',err.code)
         cblog += 'i'
         throw new Error('inside-cb-cb')
       })
@@ -340,6 +343,47 @@ describe('seneca', function(){
   })
 
 
+  it('errhandler',function(fin){
+    var tmp = {}
+
+    function grab_all(err) {
+      tmp.grab = err
+      return true
+    }
+
+    function pass_on(err) {
+      tmp.pass = err
+    }
+
+    var si = seneca(testopts)
+    si.add('cmd:grab',function(args,done){
+      done(this.fail('grab'))
+    })
+    si.add('cmd:pass',function(args,done){
+      done(this.fail('pass'))
+    })
+
+    si.options({errhandler:grab_all})
+
+    si.act('cmd:grab',function(err){
+      assert.fail()
+    })
+
+    setTimeout(function(){
+      assert.isNotNull(tmp.grab)
+
+      si.options({errhandler:pass_on})
+      
+      si.act('cmd:pass',function(err){
+        assert.isNotNull(err)
+        assert.isNotNull(tmp.pass)
+        fin()
+      })
+      
+    },10)
+
+  })
+
 
   it('register', function() {
     var si = seneca(testopts)
@@ -348,26 +392,23 @@ describe('seneca', function(){
     var emptycb = function(){}
 
     try { si.register() } catch( e ) { 
-      assert.equal('register_invalid_plugin',e.seneca.code)
+      assert.equal('no_input$',e.parambulator.code)
     }
 
 
     try { si.register({}) } catch( e ) { 
-      assert.equal('register_invalid_plugin',e.seneca.code)
-      //assert.equal("Seneca: register(plugin): The property 'name' is missing and is always required (parent: plugin).",e.message)
+      assert.equal('name',e.parambulator.property)
+      assert.equal('required$',e.parambulator.code)
     }
 
-    try { si.register({},emptycb) } catch( e ) { 
-      assert.equal('register_invalid_plugin',e.seneca.code)
-      //assert.equal("Seneca: register(plugin): The property 'name' is missing and is always required (parent: plugin).",e.message)
-    }
-
-    try { si.register({name:1,init:initfn},emptycb) } catch( e ) { 
-      assert.equal('register_invalid_plugin',e.seneca.code)
+    try { si.register({name:1,init:initfn},emptycb) } catch( e ) {
+      assert.equal('name',e.parambulator.property)
+      assert.equal('string$',e.parambulator.code)
     }
     
-    try { si.register({name:'a',init:'b'},emptycb) } catch( e ) { 
-      assert.equal('register_invalid_plugin',e.seneca.code)
+    try { si.register({name:'a',init:'b'},emptycb) } catch( e ) {
+      assert.equal('init',e.parambulator.property)
+      assert.equal('function$',e.parambulator.code)
     }
   })
 
@@ -514,7 +555,7 @@ describe('seneca', function(){
 
 
   it('plugins', function() {
-    var si = seneca({plugins:['echo'],test:{silent:true}})
+    var si = seneca({plugins:['echo'],log:'silent'})
 
     si.act({role:'echo',baz:'bax'},function(err,out){
       assert.isNull(err)
@@ -522,7 +563,7 @@ describe('seneca', function(){
     })
 
 
-    var si = seneca({plugins:['basic'],test:{silent:true}})
+    var si = seneca({plugins:['basic'],log:'silent'})
 
     si.act({role:'util',cmd:'quickcode'},function(err,code){
       assert.isNull(err)

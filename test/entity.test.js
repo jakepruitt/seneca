@@ -14,14 +14,14 @@ var gex     = require('gex')
 var assert  = require('chai').assert
 
 
-var testopts = {test:{silent:true}}
+var testopts = {log:'silent'}
 
 
 describe('entity', function(){
 
   it('happy-mem', function(fin){
     var si = seneca(testopts)
-    
+
     var fooent = si.make$('foo')
     fooent.data$({a:1,b:2}).save$(function(err,out){
       assert.isNull(err)
@@ -31,6 +31,122 @@ describe('entity', function(){
 
       fin()
     })
+  })
+
+
+  it('mem-ops', function(fin){
+    var si = seneca(testopts)
+    si.options({
+      errhandler: function(err){ err && fin(err); return true; }
+    })
+
+    var fooent = si.make$('foo')
+
+
+    try {
+      fooent.load$(function(err,out){
+        assert.fail()
+      })
+    }
+    catch(e) {
+      assert.equal('load-without-query',e.seneca.code)
+    }
+
+    try {
+      fooent.load$('',function(err,out){
+        assert.fail()
+      })
+    }
+    catch(e) {
+      assert.equal('load-without-query',e.seneca.code)
+    }
+
+
+    try {
+      fooent.remove$(function(err,out){
+        assert.fail()
+      })
+    }
+    catch(e) {
+      assert.equal('remove-without-query',e.seneca.code)
+    }
+
+    try {
+      fooent.remove$('',function(err,out){
+        assert.fail()
+      })
+    }
+    catch(e) {
+      assert.equal('remove-without-query',e.seneca.code)
+    }
+
+
+
+    ;fooent.list$(function(err,list){
+      assert.equal(0,list.length)
+
+    ;fooent.list$({a:1},function(err,list){
+      assert.equal(0,list.length)
+
+    ;fooent.make$({a:1}).save$(function(err,foo1){
+      assert.ok(foo1.id)
+      assert.equal(1,foo1.a)
+
+    ;fooent.list$(function(err,list){
+      assert.equal(1,list.length)
+      assert.equal(foo1.id,list[0].id)
+      assert.equal(foo1.a,list[0].a)
+      assert.equal(''+foo1,''+list[0])
+
+    ;fooent.list$({a:1},function(err,list){
+      assert.equal(1,list.length)
+      assert.equal(foo1.id,list[0].id)
+      assert.equal(foo1.a,list[0].a)
+      assert.equal(''+foo1,''+list[0])
+
+    ;fooent.load$(foo1.id,function(err,foo11){
+      assert.equal(foo1.id,foo11.id)
+      assert.equal(foo1.a,foo11.a)
+      assert.equal(''+foo1,''+foo11)
+
+      foo11.a = 2
+    ;foo11.save$( function(err,foo111){
+      assert.equal(foo11.id,foo111.id)
+      assert.equal(2,foo111.a)
+
+    ;fooent.list$(function(err,list){
+      assert.equal(1,list.length)
+      assert.equal(foo1.id,list[0].id)
+      assert.equal(2,list[0].a)
+      assert.equal(''+foo111,''+list[0])
+
+    ;fooent.list$({a:2},function(err,list){
+      assert.equal(1,list.length)
+      assert.equal(foo1.id,list[0].id)
+      assert.equal(2,list[0].a)
+      assert.equal(''+foo111,''+list[0])
+
+    ;list[0].remove$(function(err){
+
+    ;fooent.list$(function(err,list){
+      assert.equal(0,list.length)
+
+    ;fooent.list$({a:2},function(err,list){
+      assert.equal(0,list.length)
+
+    ;fooent.make$({b:1}).save$(function(){
+
+    ;fooent.make$({b:2}).save$(function(){
+      
+    ;fooent.list$(function(err,list){
+      assert.equal(2,list.length)
+
+    ;fooent.list$({b:1},function(err,list){
+      assert.equal(1,list.length)
+
+      fin()
+    }) }) }) }) }) }) }) }) }) }) }) }) }) }) }) })
+
   })
 
 
@@ -231,7 +347,7 @@ describe('entity', function(){
 
 
   it('close', function(done){
-    var si = seneca({log:'silent'})
+    var si = seneca(testopts)
 
     var tmp = {s0:0,s1:0,s2:0}
 
